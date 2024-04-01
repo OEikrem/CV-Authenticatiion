@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CV Approval</title>
+    <style>
+        .bold {
+            font-weight: bold;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(133, 41, 41, 0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+        }
+    </style>
+</head>
+<body>
+    <h1>CV Approval</h1>
+
+    <!-- Knapp for å hente CV fra blockchain -->
+    <button id="fetchCVButton">Hent CV fra Blockchain</button>
+
+    <!-- Knapp for å godkjenne CV-en -->
+    <button id="openApproveModalButton">Godkjenn CV</button>
+
+    <!-- Knapp for å ikke godkjenne CV-en -->
+    <button id="openDisapproveModalButton">Ikke Godkjenn CV</button>
+
+    <!-- Modal for godkjenn CV -->
+    <div id="approveModal" class="modal">
+        <div class="modal-content">
+            <span class="closeApprove">&times;</span>
+            <p>Skriv inn din private nøkkel:</p>
+            <input type="text" id="privateKeyApproveModal" placeholder="Din private nøkkel...">
+        </div>
+    </div>
+
+    <!-- Modal for ikke godkjenn CV -->
+    <div id="disapproveModal" class="modal">
+        <div class="modal-content">
+            <span class="closeDisapprove">&times;</span>
+            <p>Skriv inn begrunnelse for ikke godkjent CV:</p>
+            <textarea id="disapprovalReason" placeholder="Begrunnelse for ikke godkjent CV..."></textarea>
+            <p>Skriv inn din private nøkkel:</p>
+            <input type="text" id="privateKeyDisapproveModal" placeholder="Din private nøkkel...">
+        </div>
+    </div>
+
+    <!-- Element for å vise godkjenningsmeldingen -->
+    <div id="approvalMessage"></div>
+
+    <!-- Element for å vise "parts" -dataene -->
+    <div id="partsData"></div>
+
+    <!-- JavaScript-kode -->
+    <script>
+        // Get the modal for approving CV
+        var approveModal = document.getElementById("approveModal");
+        // Get the modal for disapproving CV
+        var disapproveModal = document.getElementById("disapproveModal");
+
+        // Get the button that opens the modal for approving CV
+        var openApproveModalBtn = document.getElementById("openApproveModalButton");
+        // Get the button that opens the modal for disapproving CV
+        var openDisapproveModalBtn = document.getElementById("openDisapproveModalButton");
+
+        // Get the <span> element that closes the approve modal
+        var spanApprove = document.getElementsByClassName("closeApprove")[0];
+        // Get the <span> element that closes the disapprove modal
+        var spanDisapprove = document.getElementsByClassName("closeDisapprove")[0];
+
+        // When the user clicks the button to open the approve modal, open it
+        openApproveModalBtn.onclick = function() {
+            approveModal.style.display = "block";
+        }
+
+        // When the user clicks the button to open the disapprove modal, open it
+        openDisapproveModalBtn.onclick = function() {
+            disapproveModal.style.display = "block";
+        }
+
+        // When the user clicks on <span> (x) to close the approve modal, close it
+        spanApprove.onclick = function() {
+            approveModal.style.display = "none";
+        }
+
+        // When the user clicks on <span> (x) to close the disapprove modal, close it
+        spanDisapprove.onclick = function() {
+            disapproveModal.style.display = "none";
+        }
+
+        // When the user clicks anywhere outside of the approve modal, close it
+        window.onclick = function(event) {
+            if (event.target == approveModal) {
+                approveModal.style.display = "none";
+            } else if (event.target == disapproveModal) {
+                disapproveModal.style.display = "none";
+            }
+        }
+
+        async function GetOPReturnByTxHash(hash) {
+            try {
+                const response = await fetch(`https://api.whatsonchain.com/v1/bsv/test/tx/hash/${hash}`);
+                if (!response.ok) {
+                    throw new Error('Unable to fetch CV data: ' + response.statusText);
+                }
+                const responseData = await response.json();
+                console.log('Response data:', responseData); // Logg responsen til konsollen
+
+                // Hent "parts" -dataene hvis de er tilgjengelige
+                if (responseData && responseData.vout) {
+                    const partsData = responseData.vout.reduce((accumulator, output) => {
+                        if (output.scriptPubKey.opReturn && output.scriptPubKey.opReturn.parts) {
+                            const part = JSON.parse(output.scriptPubKey.opReturn.parts[0]);
+                            Object.entries(part).forEach(([key, value]) => {
+                                accumulator += `<span class="bold">${key}:</span> ${value}<br>`;
+                            });
+                        }
+                        return accumulator;
+                    }, '');
+                    console.log('Parts data:', partsData); // Logg "parts" -dataene til konsollen
+                    document.getElementById('partsData').innerHTML = partsData; // Vis dataene på HTML-siden
+                } else {
+                    console.log('No parts data found');
+                }
+            } catch (error) {
+                console.error("Error fetching CV data:", error);
+                document.getElementById('approvalMessage').innerText = "Error fetching CV data: " + error.message;
+            }
+        }
+
+        async function sendToWhatsonchain(data, txid, privateKey) {
+            try {
+                const response = await fetch(`https://api.whatsonchain.com/v1/bsv/test/tx/send`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        txhex: data,
+                        wif: privateKey
+                    })
+                });
+
+                const responseData = await response.json();
+                console.log('Response from whatsonchain:', responseData);
+
+                // Vis en passende melding basert på responsen
+                if (response.ok) {
+                    document.getElementById('approvalMessage').innerText = "Data sent successfully!";
+                } else {
+                    document.getElementById('approvalMessage').innerText = "Error sending data: " + responseData.error;
+                }
+            } catch (error) {
+                console.error("Error sending data to whatsonchain:", error);
+                document.getElementById('approvalMessage').innerText = "Error sending data: " + error.message;
+            }
+        }
+
+        // Funksjon for å håndtere godkjenningsknappen
+        async function handleApproveCVButton(privateKey) {
+            // Eksempel på CV-data
+            const cvData = {
+                approved: true,
+                reason: "" // Legg til eventuelle andre relevante data her
+            };
+
+            // Hent data-attributtene fra knappen
+            const txid = document.querySelector('.approveCVButton').getAttribute('data-txid');
+
+            // Send data til whatsonchain når knappen klikkes
+            await sendToWhatsonchain(JSON.stringify(cvData), txid, privateKey);
+        }
+
+        // Funksjon for å håndtere ikke-godkjenningsknappen
+        async function handleDisapproveCVButton(privateKey) {
+            // Eksempel på CV-data
+            const cvData = {
+                approved: false,
+                reason: document.getElementById('disapprovalReason').value
+            };
+
+            // Hent data-attributtene fra knappen
+            const txid = document.querySelector('.approveCVButton').getAttribute('data-txid');
+
+            // Send data til whatsonchain når knappen klikkes
+            await sendToWhatsonchain(JSON.stringify(cvData), txid, privateKey);
+        }
+
+        // Event listener for Enter key press in approve modal input field
+        document.getElementById("privateKeyApproveModal").addEventListener("keyup", function(event) {
+            if (event.key === "Enter") {
+                const privateKey = document.getElementById('privateKeyApproveModal').value;
+                handleApproveCVButton(privateKey);
+                approveModal.style.display = "none"; // Close approve modal after approval
+            }
+        });
+
+        // Event listener for Enter key press in disapprove modal input field
+        document.getElementById("privateKeyDisapproveModal").addEventListener("keyup", function(event) {
+            if (event.key === "Enter") {
+                const privateKey = document.getElementById('privateKeyDisapproveModal').value;
+                handleDisapproveCVButton(privateKey);
+                disapproveModal.style.display = "none"; // Close disapprove modal after disapproval
+            }
+        });
+
+        // Legg til event-lytter for "Hent CV fra Blockchain" -knappen
+        document.getElementById('fetchCVButton').addEventListener('click', async function() {
+            // Eksempel på transaksjons-hash
+            const hash = '39d837af5eb68e26e7141b77ec46a9e5a89a52d73ea1e982e6fe55f93763a44e';
+            await GetOPReturnByTxHash(hash);
+        });
+    </script>
+</body>
+</html>
