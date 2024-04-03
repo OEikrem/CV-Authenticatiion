@@ -1,3 +1,12 @@
+MAKE SURE THAT DEPENDENCIES ARE INSTALLED!!
+This project requires bsv2, whatsonchain, readline and axios to function.
+
+Install by running npm install ... 
+
+run the codes either in cmd or in your terminal. 
+
+I suggest having two addresses and instances of the Wallet Import Format (WIF) available.
+
 The code goes as followed:
 
 Job applicant:
