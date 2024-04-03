@@ -1,4 +1,5 @@
 The code goes as followed:
+
 Job applicant:
 - Write your CV or relevant work history and save it as a .txt file.
 - Execute the convert.js code, which converts your .txt file into a JSON file, making it easier to read when uploaded to the blockchain.
